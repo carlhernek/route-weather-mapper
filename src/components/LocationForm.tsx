@@ -1,20 +1,30 @@
+
 import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Clock, MapPin, Plus, X } from 'lucide-react';
 import LocationInput from './LocationInput';
+import { calculateRoute, RouteResult } from '@/utils/routeUtils';
+import { useToast } from '@/hooks/use-toast';
 
 interface Location {
   id: number;
   address: string;
 }
 
-const LocationForm = () => {
+interface LocationFormProps {
+  onRouteCalculated: (routeData: RouteResult | null) => void;
+  isLoading: boolean;
+  setIsLoading: (loading: boolean) => void;
+}
+
+const LocationForm = ({ onRouteCalculated, isLoading, setIsLoading }: LocationFormProps) => {
   const [startTime, setStartTime] = useState('');
   const [startLocation, setStartLocation] = useState('');
   const [endLocation, setEndLocation] = useState('');
   const [waypoints, setWaypoints] = useState<Location[]>([]);
+  const { toast } = useToast();
 
   const addWaypoint = () => {
     setWaypoints([...waypoints, { id: Date.now(), address: '' }]);
@@ -30,9 +40,71 @@ const LocationForm = () => {
     setStartTime(formattedDate);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle route calculation here
+    
+    // Get token from localStorage
+    const mapboxToken = localStorage.getItem('mapboxToken');
+    if (!mapboxToken) {
+      toast({
+        title: "Missing Mapbox token",
+        description: "Please enter your Mapbox token in the settings",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (!startLocation || !endLocation) {
+      toast({
+        title: "Missing locations",
+        description: "Please provide both start and end locations",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const waypointAddresses = waypoints.map(wp => wp.address).filter(address => address.trim() !== '');
+      
+      const routeResult = await calculateRoute(
+        startLocation,
+        endLocation,
+        waypointAddresses,
+        mapboxToken
+      );
+      
+      if (routeResult) {
+        // Format distance and duration for display
+        const distanceInKm = (routeResult.distance / 1000).toFixed(1);
+        const durationInMinutes = Math.round(routeResult.duration / 60);
+        
+        toast({
+          title: "Route calculated",
+          description: `Distance: ${distanceInKm} km, Duration: ${durationInMinutes} min`,
+        });
+        
+        onRouteCalculated(routeResult);
+      } else {
+        toast({
+          title: "Route calculation failed",
+          description: "Unable to calculate route between these locations",
+          variant: "destructive"
+        });
+        onRouteCalculated(null);
+      }
+    } catch (error) {
+      console.error('Error calculating route:', error);
+      toast({
+        title: "Error",
+        description: "An error occurred while calculating the route",
+        variant: "destructive"
+      });
+      onRouteCalculated(null);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -115,8 +187,8 @@ const LocationForm = () => {
         >
           <Plus className="h-4 w-4" /> Add Waypoint
         </Button>
-        <Button type="submit" className="flex-1">
-          Calculate Route
+        <Button type="submit" className="flex-1" disabled={isLoading}>
+          {isLoading ? "Calculating..." : "Calculate Route"}
         </Button>
       </div>
     </form>

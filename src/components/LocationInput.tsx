@@ -33,7 +33,7 @@ const LocationInput = ({ value, onChange, placeholder, required }: LocationInput
       return;
     }
 
-    const token = localStorage.getItem('mapbox_token');
+    const token = "pk.eyJ1IjoiY2FsbGVib2xsIiwiYSI6ImNtOGU5NXlvYzFtejMyanNoam1xbmRybzQifQ.WFffNsWCkKcPisEbZtEkig";
     if (!token) {
       console.error('Mapbox token not found');
       return;

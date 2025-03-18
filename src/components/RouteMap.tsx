@@ -11,7 +11,7 @@ const RouteMap = () => {
     if (!mapContainer.current) return;
 
     // Initialize map
-    mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN'; // You'll need to provide this
+    mapboxgl.accessToken = 'pk.eyJ1IjoiY2FsbGVib2xsIiwiYSI6ImNtOGU5NXlvYzFtejMyanNoam1xbmRybzQifQ.WFffNsWCkKcPisEbZtEkig'; // You'll need to provide this
     
     map.current = new mapboxgl.Map({
       container: mapContainer.current,

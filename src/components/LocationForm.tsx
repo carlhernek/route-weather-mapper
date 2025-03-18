@@ -1,9 +1,9 @@
-
 import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Clock, MapPin, Plus, X } from 'lucide-react';
+import LocationInput from './LocationInput';
 
 interface Location {
   id: number;
@@ -26,7 +26,6 @@ const LocationForm = () => {
 
   const setTimeToNow = () => {
     const now = new Date();
-    // Format date to match datetime-local input format: YYYY-MM-DDThh:mm
     const formattedDate = now.toISOString().slice(0, 16);
     setStartTime(formattedDate);
   };
@@ -66,51 +65,45 @@ const LocationForm = () => {
       </div>
 
       <div className="space-y-4">
-        <div className="relative">
-          <MapPin className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-          <Input
-            placeholder="Start location"
-            value={startLocation}
-            onChange={(e) => setStartLocation(e.target.value)}
-            className="pl-10"
-            required
-          />
-        </div>
+        <LocationInput
+          value={startLocation}
+          onChange={setStartLocation}
+          placeholder="Start location"
+          required
+        />
 
         {waypoints.map((wp) => (
-          <div key={wp.id} className="relative">
-            <MapPin className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-            <Input
-              placeholder="Waypoint"
-              value={wp.address}
-              onChange={(e) => {
-                const updated = waypoints.map(w =>
-                  w.id === wp.id ? { ...w, address: e.target.value } : w
-                );
-                setWaypoints(updated);
-              }}
-              className="pl-10 pr-10"
-            />
-            <button
+          <div key={wp.id} className="flex gap-2">
+            <div className="flex-1">
+              <LocationInput
+                value={wp.address}
+                onChange={(value) => {
+                  const updated = waypoints.map(w =>
+                    w.id === wp.id ? { ...w, address: value } : w
+                  );
+                  setWaypoints(updated);
+                }}
+                placeholder="Waypoint"
+              />
+            </div>
+            <Button
               type="button"
+              variant="outline"
+              size="icon"
               onClick={() => removeWaypoint(wp.id)}
-              className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600"
+              className="shrink-0"
             >
-              <X className="h-5 w-5" />
-            </button>
+              <X className="h-4 w-4" />
+            </Button>
           </div>
         ))}
 
-        <div className="relative">
-          <MapPin className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-          <Input
-            placeholder="End location"
-            value={endLocation}
-            onChange={(e) => setEndLocation(e.target.value)}
-            className="pl-10"
-            required
-          />
-        </div>
+        <LocationInput
+          value={endLocation}
+          onChange={setEndLocation}
+          placeholder="End location"
+          required
+        />
       </div>
 
       <div className="flex gap-4">

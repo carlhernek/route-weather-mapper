@@ -24,6 +24,13 @@ const LocationForm = () => {
     setWaypoints(waypoints.filter(wp => wp.id !== id));
   };
 
+  const setTimeToNow = () => {
+    const now = new Date();
+    // Format date to match datetime-local input format: YYYY-MM-DDThh:mm
+    const formattedDate = now.toISOString().slice(0, 16);
+    setStartTime(formattedDate);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Handle route calculation here
@@ -34,15 +41,26 @@ const LocationForm = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-700">Start Time</label>
-          <div className="relative">
-            <Clock className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-            <Input
-              type="datetime-local"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              className="pl-10"
-              required
-            />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Clock className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+              <Input
+                type="datetime-local"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="pl-10"
+                required
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={setTimeToNow}
+              title="Set to current time"
+            >
+              <Clock className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </div>

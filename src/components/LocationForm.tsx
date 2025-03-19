@@ -3,10 +3,12 @@ import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Clock, MapPin, Plus, X } from 'lucide-react';
+import { Clock, MapPin, Plus, X, AlertTriangle } from 'lucide-react';
 import LocationInput from './LocationInput';
 import { calculateRoute, RouteResult } from '@/utils/routeUtils';
 import { useToast } from '@/hooks/use-toast';
+import { useSupabase } from '@/components/providers/SupabaseProvider';
+import { useCredit, getUserCredits } from '@/lib/credits';
 
 interface Location {
   id: number;
@@ -24,7 +26,20 @@ const LocationForm = ({ onRouteCalculated, isLoading, setIsLoading }: LocationFo
   const [startLocation, setStartLocation] = useState('');
   const [endLocation, setEndLocation] = useState('');
   const [waypoints, setWaypoints] = useState<Location[]>([]);
+  const [userCredits, setUserCredits] = useState<number | null>(null);
   const { toast } = useToast();
+  const { user } = useSupabase();
+
+  // Load user credits
+  React.useEffect(() => {
+    if (user) {
+      getUserCredits().then(data => {
+        setUserCredits(data.credits);
+      }).catch(err => {
+        console.error('Error loading credits:', err);
+      });
+    }
+  }, [user]);
 
   const addWaypoint = () => {
     setWaypoints([...waypoints, { id: Date.now(), address: '' }]);
@@ -42,6 +57,26 @@ const LocationForm = ({ onRouteCalculated, isLoading, setIsLoading }: LocationFo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check if user is signed in
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to calculate routes",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Check if user has credits
+    if (userCredits !== null && userCredits < 1) {
+      toast({
+        title: "No credits",
+        description: "You don't have enough credits. Please purchase more.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     // Get token from localStorage
     const mapboxToken = localStorage.getItem('mapboxToken');
@@ -75,6 +110,14 @@ const LocationForm = ({ onRouteCalculated, isLoading, setIsLoading }: LocationFo
     setIsLoading(true);
     
     try {
+      // Use a credit
+      await useCredit();
+      
+      // Refresh user credits
+      getUserCredits().then(data => {
+        setUserCredits(data.credits);
+      });
+      
       const waypointAddresses = waypoints.map(wp => wp.address).filter(address => address.trim() !== '');
       
       const routeResult = await calculateRoute(
@@ -118,6 +161,23 @@ const LocationForm = ({ onRouteCalculated, isLoading, setIsLoading }: LocationFo
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {userCredits !== null && userCredits < 1 && (
+        <Card className="p-2 bg-amber-50 border-amber-200">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-800" />
+            <p className="text-amber-800 text-xs">
+              You don't have any credits left. Please purchase more.
+            </p>
+          </div>
+        </Card>
+      )}
+      
+      {user && userCredits !== null && (
+        <div className="text-sm text-right">
+          <span className="font-medium">{userCredits}</span> credits available
+        </div>
+      )}
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-700">Start Time</label>
@@ -196,7 +256,11 @@ const LocationForm = ({ onRouteCalculated, isLoading, setIsLoading }: LocationFo
         >
           <Plus className="h-4 w-4" /> Add Waypoint
         </Button>
-        <Button type="submit" className="flex-1" disabled={isLoading}>
+        <Button 
+          type="submit" 
+          className="flex-1" 
+          disabled={isLoading || !user || (userCredits !== null && userCredits < 1)}
+        >
           {isLoading ? "Calculating..." : "Calculate Route"}
         </Button>
       </div>

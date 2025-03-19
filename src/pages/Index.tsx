@@ -9,10 +9,15 @@ import CollapsibleSection from '@/components/CollapsibleSection';
 import { RouteResult } from '@/utils/routeUtils';
 import { WeatherCheckpoint, calculateWeatherAlongRoute } from '@/utils/weatherUtils';
 import { useToast } from '@/hooks/use-toast';
-import { Clock, Map, Info, AlertTriangle, Settings } from 'lucide-react';
+import { 
+  Clock, Map, Info, AlertTriangle, Settings, Navigation, CreditCard 
+} from 'lucide-react';
 import { Drawer, DrawerTrigger, DrawerContent, DrawerClose } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
+import AuthButton from '@/components/AuthButton';
+import CreditManager from '@/components/CreditManager';
+import { useSupabase } from '@/components/providers/SupabaseProvider';
 
 const Index = () => {
   const [routeData, setRouteData] = useState<RouteResult | null>(null);
@@ -22,6 +27,7 @@ const Index = () => {
   const [weatherApiKeyMissing, setWeatherApiKeyMissing] = useState(false);
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const { user } = useSupabase();
 
   useEffect(() => {
     // Check if OpenWeather API key is available
@@ -90,24 +96,28 @@ const Index = () => {
               <p className="text-sm text-muted-foreground">Plan with forecasts</p>
             </div>
             
-            {isMobile ? (
-              <Drawer>
-                <DrawerTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </DrawerTrigger>
-                <DrawerContent className="p-4">
-                  <h3 className="text-lg font-semibold mb-2">API Settings</h3>
-                  <TokenInput />
-                  <DrawerClose className="absolute right-4 top-4">
-                    <Button variant="ghost" size="sm">Done</Button>
-                  </DrawerClose>
-                </DrawerContent>
-              </Drawer>
-            ) : (
-              <TokenInput />
-            )}
+            <div className="flex items-center gap-2">
+              <AuthButton />
+              
+              {isMobile ? (
+                <Drawer>
+                  <DrawerTrigger asChild>
+                    <Button variant="outline" size="icon">
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                  </DrawerTrigger>
+                  <DrawerContent className="p-4">
+                    <h3 className="text-lg font-semibold mb-2">API Settings</h3>
+                    <TokenInput />
+                    <DrawerClose className="absolute right-4 top-4">
+                      <Button variant="ghost" size="sm">Done</Button>
+                    </DrawerClose>
+                  </DrawerContent>
+                </Drawer>
+              ) : (
+                <TokenInput />
+              )}
+            </div>
           </header>
           
           {weatherApiKeyMissing && (
@@ -134,6 +144,16 @@ const Index = () => {
                   setIsLoading={setIsLoading}
                 />
               </CollapsibleSection>
+              
+              {user && (
+                <CollapsibleSection 
+                  title="Credits & Subscription" 
+                  defaultOpen={false}
+                  icon={<CreditCard className="h-4 w-4 text-green-500" />}
+                >
+                  <CreditManager />
+                </CollapsibleSection>
+              )}
               
               {routeData && (
                 <CollapsibleSection 
@@ -179,7 +199,7 @@ const Index = () => {
           {weatherData && weatherData.length > 0 && (
             <CollapsibleSection 
               title="Weather Along Route" 
-              icon={<Clock className="h-4 w-4 text-green-500" />}
+              icon={<Navigation className="h-4 w-4 text-green-500" />}
               defaultOpen={false}
             >
               <RouteSummary weatherCheckpoints={weatherData} startTime={startTime} />

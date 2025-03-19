@@ -1,10 +1,11 @@
 
 import React from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { WeatherCheckpoint } from '@/utils/weatherUtils';
 import { Cloud, CloudRain, Sun, CloudLightning, CloudSnow, CloudFog, CloudSun, Moon, CloudMoon, CloudDrizzle, Wind, ThermometerSnowflake } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 interface RouteSummaryProps {
   weatherCheckpoints: WeatherCheckpoint[] | null;
@@ -12,6 +13,8 @@ interface RouteSummaryProps {
 }
 
 const RouteSummary = ({ weatherCheckpoints, startTime }: RouteSummaryProps) => {
+  const isMobile = useIsMobile();
+  
   if (!weatherCheckpoints || weatherCheckpoints.length === 0) {
     return null;
   }
@@ -56,95 +59,173 @@ const RouteSummary = ({ weatherCheckpoints, startTime }: RouteSummaryProps) => {
     }
   };
 
-  return (
-    <Card className="bg-white/80 backdrop-blur-sm shadow-lg">
-      <CardHeader>
-        <CardTitle className="text-xl">Weather Along Route</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead>Weather</TableHead>
-                <TableHead>Temp</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {weatherCheckpoints.map((checkpoint, index) => (
-                <TableRow 
-                  key={index} 
-                  className={checkpoint.weather.isRisky ? "bg-red-50" : ""}
-                >
-                  <TableCell className="font-medium">
+  // Render mobile view with accordion
+  if (isMobile) {
+    return (
+      <div className="space-y-2">
+        <div className="text-xs text-muted-foreground flex items-center justify-between">
+          <div>
+            {startTime && (
+              <span>
+                Departure: {new Intl.DateTimeFormat('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  month: 'short',
+                  day: 'numeric'
+                }).format(startTime)}
+              </span>
+            )}
+          </div>
+          <div>
+            {weatherCheckpoints.length > 0 && (
+              <span>
+                Arrival: {new Intl.DateTimeFormat('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  month: 'short',
+                  day: 'numeric'
+                }).format(weatherCheckpoints[weatherCheckpoints.length - 1].arrivalTime)}
+              </span>
+            )}
+          </div>
+        </div>
+        
+        <Accordion type="multiple" className="w-full">
+          {weatherCheckpoints.map((checkpoint, index) => (
+            <AccordionItem 
+              key={index} 
+              value={`item-${index}`}
+              className={checkpoint.weather.isRisky ? "bg-red-50 border border-red-100 rounded-md mb-1" : "border mb-1 rounded-md"}
+            >
+              <AccordionTrigger className="px-3 py-2 text-sm hover:no-underline">
+                <div className="flex justify-between items-center w-full">
+                  <div className="font-medium">
                     {new Intl.DateTimeFormat('en-US', {
                       hour: 'numeric',
                       minute: '2-digit'
                     }).format(checkpoint.arrivalTime)}
-                  </TableCell>
-                  <TableCell>{checkpoint.location}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {getWeatherIcon(checkpoint.weather.icon)}
-                      <span>{checkpoint.weather.condition}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {getWeatherIcon(checkpoint.weather.icon)}
                     <span className={`font-semibold ${
                       checkpoint.weather.temperature > 25 ? 'text-red-500' : 
                       checkpoint.weather.temperature < 5 ? 'text-blue-500' : 'text-gray-700'
                     }`}>
                       {checkpoint.weather.temperature}°C
                     </span>
-                  </TableCell>
-                  <TableCell>
                     {checkpoint.weather.isRisky && (
-                      <Badge variant="destructive" className="flex items-center gap-1">
-                        {getRiskIcon(checkpoint.weather.riskReason)}
-                        {checkpoint.weather.riskReason}
-                      </Badge>
+                      <Badge variant="destructive" className="ml-2">!</Badge>
                     )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="px-3 pb-3 pt-0">
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-xs text-gray-500">Location:</span>
+                    <p className="text-sm">{checkpoint.location}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500">Weather:</span>
+                    <p className="text-sm">{checkpoint.weather.condition}</p>
+                  </div>
+                  {checkpoint.weather.isRisky && (
+                    <Badge variant="destructive" className="flex items-center gap-1 mt-1">
+                      {getRiskIcon(checkpoint.weather.riskReason)}
+                      {checkpoint.weather.riskReason}
+                    </Badge>
+                  )}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      </div>
+    );
+  }
+
+  // Desktop view with table
+  return (
+    <div>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Time</TableHead>
+              <TableHead>Location</TableHead>
+              <TableHead>Weather</TableHead>
+              <TableHead>Temp</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {weatherCheckpoints.map((checkpoint, index) => (
+              <TableRow 
+                key={index} 
+                className={checkpoint.weather.isRisky ? "bg-red-50" : ""}
+              >
+                <TableCell className="font-medium">
+                  {new Intl.DateTimeFormat('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit'
+                  }).format(checkpoint.arrivalTime)}
+                </TableCell>
+                <TableCell>{checkpoint.location}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    {getWeatherIcon(checkpoint.weather.icon)}
+                    <span>{checkpoint.weather.condition}</span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <span className={`font-semibold ${
+                    checkpoint.weather.temperature > 25 ? 'text-red-500' : 
+                    checkpoint.weather.temperature < 5 ? 'text-blue-500' : 'text-gray-700'
+                  }`}>
+                    {checkpoint.weather.temperature}°C
+                  </span>
+                </TableCell>
+                <TableCell>
+                  {checkpoint.weather.isRisky && (
+                    <Badge variant="destructive" className="flex items-center gap-1">
+                      {getRiskIcon(checkpoint.weather.riskReason)}
+                      {checkpoint.weather.riskReason}
+                    </Badge>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      
+      <div className="mt-3 text-xs text-muted-foreground flex justify-between">
+        <div>
+          {startTime && (
+            <span>
+              Departure: {new Intl.DateTimeFormat('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                month: 'short',
+                day: 'numeric'
+              }).format(startTime)}
+            </span>
+          )}
         </div>
-        
-        <div className="mt-4 text-sm text-muted-foreground">
-          <p>Showing route weather forecast at 15-minute intervals</p>
-          <p className="mt-1">
-            {startTime && (
-              <>
-                Departure: {new Intl.DateTimeFormat('en-US', {
-                  hour: 'numeric',
-                  minute: '2-digit',
-                  weekday: 'short',
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric'
-                }).format(startTime)}
-              </>
-            )}
-          </p>
+        <div>
           {weatherCheckpoints.length > 0 && (
-            <p>
+            <span>
               Arrival: {new Intl.DateTimeFormat('en-US', {
                 hour: 'numeric',
                 minute: '2-digit',
-                weekday: 'short',
-                year: 'numeric',
                 month: 'short',
                 day: 'numeric'
               }).format(weatherCheckpoints[weatherCheckpoints.length - 1].arrivalTime)}
-            </p>
+            </span>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 

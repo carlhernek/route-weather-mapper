@@ -14,7 +14,7 @@ interface Location {
 }
 
 interface LocationFormProps {
-  onRouteCalculated: (routeData: RouteResult | null) => void;
+  onRouteCalculated: (routeData: RouteResult | null, startTime: string) => void;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
 }
@@ -63,6 +63,15 @@ const LocationForm = ({ onRouteCalculated, isLoading, setIsLoading }: LocationFo
       return;
     }
     
+    if (!startTime) {
+      toast({
+        title: "Missing departure time",
+        description: "Please provide a departure time",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
@@ -85,14 +94,14 @@ const LocationForm = ({ onRouteCalculated, isLoading, setIsLoading }: LocationFo
           description: `Distance: ${distanceInKm} km, Duration: ${durationInMinutes} min`,
         });
         
-        onRouteCalculated(routeResult);
+        onRouteCalculated(routeResult, startTime);
       } else {
         toast({
           title: "Route calculation failed",
           description: "Unable to calculate route between these locations",
           variant: "destructive"
         });
-        onRouteCalculated(null);
+        onRouteCalculated(null, startTime);
       }
     } catch (error) {
       console.error('Error calculating route:', error);
@@ -101,7 +110,7 @@ const LocationForm = ({ onRouteCalculated, isLoading, setIsLoading }: LocationFo
         description: "An error occurred while calculating the route",
         variant: "destructive"
       });
-      onRouteCalculated(null);
+      onRouteCalculated(null, startTime);
     } finally {
       setIsLoading(false);
     }

@@ -3,15 +3,57 @@ import React, { useState } from 'react';
 import RouteMap from '@/components/RouteMap';
 import LocationForm from '@/components/LocationForm';
 import TokenInput from '@/components/TokenInput';
+import RouteSummary from '@/components/RouteSummary';
 import { Card } from '@/components/ui/card';
 import { RouteResult } from '@/utils/routeUtils';
+import { WeatherCheckpoint, calculateWeatherAlongRoute } from '@/utils/weatherUtils';
+import { useToast } from '@/hooks/use-toast';
 
 const Index = () => {
   const [routeData, setRouteData] = useState<RouteResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [weatherData, setWeatherData] = useState<WeatherCheckpoint[] | null>(null);
+  const [startTime, setStartTime] = useState<Date | null>(null);
+  const { toast } = useToast();
 
-  const handleRouteCalculated = (data: RouteResult | null) => {
+  const handleRouteCalculated = async (data: RouteResult | null, departureTime: string) => {
     setRouteData(data);
+    
+    if (data && data.route.features && data.route.features.length > 0) {
+      setIsLoading(true);
+      
+      try {
+        // Parse the departure time
+        const startTimeObj = departureTime ? new Date(departureTime) : new Date();
+        setStartTime(startTimeObj);
+        
+        // Calculate weather along the route
+        const weatherCheckpoints = await calculateWeatherAlongRoute(
+          data.route.features[0],
+          startTimeObj,
+          data.duration,
+          data.waypoints
+        );
+        
+        setWeatherData(weatherCheckpoints);
+        
+        toast({
+          title: "Weather data loaded",
+          description: `${weatherCheckpoints.length} weather points along your route`,
+        });
+      } catch (error) {
+        console.error('Error calculating weather:', error);
+        toast({
+          title: "Weather calculation error",
+          description: "Could not calculate weather data for the route",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      setWeatherData(null);
+    }
   };
 
   return (
@@ -36,7 +78,7 @@ const Index = () => {
             </Card>
 
             <div className="h-[600px] rounded-xl overflow-hidden shadow-lg lg:col-span-2">
-              <RouteMap routeData={routeData} />
+              <RouteMap routeData={routeData} weatherData={weatherData} />
             </div>
           </div>
 
@@ -54,6 +96,10 @@ const Index = () => {
                 </div>
               </div>
             </Card>
+          )}
+
+          {weatherData && weatherData.length > 0 && (
+            <RouteSummary weatherCheckpoints={weatherData} startTime={startTime} />
           )}
         </div>
       </div>

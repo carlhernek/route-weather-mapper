@@ -1,8 +1,10 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { RoutePoint } from '@/utils/routeUtils';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Settings } from 'lucide-react';
+import TokenInput from './TokenInput';
 
 interface RouteMapProps {
   routeData?: {
@@ -15,32 +17,45 @@ const RouteMap = ({ routeData }: RouteMapProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [tokenMissing, setTokenMissing] = useState(false);
   
   useEffect(() => {
     if (!mapContainer.current) return;
 
     // Get token from localStorage
-    const accessToken = localStorage.getItem('mapboxToken') || '';
+    const accessToken = localStorage.getItem('mapboxToken');
+    
+    if (!accessToken) {
+      setTokenMissing(true);
+      return;
+    }
+    
+    setTokenMissing(false);
     
     // Initialize map
     mapboxgl.accessToken = accessToken;
     
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/light-v11',
-      center: [-74.5, 40],
-      zoom: 9,
-    });
+    try {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/light-v11',
+        center: [-74.5, 40],
+        zoom: 9,
+      });
 
-    // Add navigation controls
-    map.current.addControl(
-      new mapboxgl.NavigationControl(),
-      'top-right'
-    );
+      // Add navigation controls
+      map.current.addControl(
+        new mapboxgl.NavigationControl(),
+        'top-right'
+      );
 
-    map.current.on('load', () => {
-      setMapLoaded(true);
-    });
+      map.current.on('load', () => {
+        setMapLoaded(true);
+      });
+    } catch (error) {
+      console.error('Error initializing map:', error);
+      setTokenMissing(true);
+    }
 
     return () => {
       map.current?.remove();
@@ -124,10 +139,24 @@ const RouteMap = ({ routeData }: RouteMapProps) => {
     }
   }, [routeData, mapLoaded]);
 
+  if (tokenMissing) {
+    return (
+      <div className="rounded-lg border p-4 space-y-4">
+        <Alert>
+          <AlertDescription>
+            Please enter your Mapbox token below to use the map
+          </AlertDescription>
+        </Alert>
+        <TokenInput showDirectInput={true} />
+      </div>
+    );
+  }
+
   return (
-    <div className="relative w-full h-full">
-      <div ref={mapContainer} className="absolute inset-0" />
-    </div>
+    <div 
+      ref={mapContainer} 
+      className="w-full h-[400px] rounded-lg border"
+    />
   );
 };
 

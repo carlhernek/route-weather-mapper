@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -6,7 +5,11 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-const TokenInput = () => {
+interface TokenInputProps {
+  showDirectInput?: boolean;
+}
+
+const TokenInput = ({ showDirectInput = false }: TokenInputProps) => {
   const [token, setToken] = useState('');
   const { toast } = useToast();
 
@@ -31,7 +34,33 @@ const TokenInput = () => {
       title: "Token Saved",
       description: "Your Mapbox token has been saved"
     });
+    
+    // Reload the page to reinitialize the map with the new token
+    window.location.reload();
   };
+
+  if (showDirectInput) {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Mapbox Access Token</label>
+          <Input
+            type="text"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="Enter your Mapbox token"
+            className="font-mono text-xs"
+          />
+          <p className="text-xs text-muted-foreground">
+            Your token is stored locally in your browser and is never sent to our servers.
+          </p>
+        </div>
+        <Button onClick={handleSaveToken} className="w-full">
+          Save Token
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <Sheet>

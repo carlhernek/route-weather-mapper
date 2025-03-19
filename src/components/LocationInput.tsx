@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Command, CommandInput, CommandList, CommandItem } from '@/components/ui/command';
@@ -33,7 +32,7 @@ const LocationInput = ({ value, onChange, placeholder, required }: LocationInput
       return;
     }
 
-    const token = "pk.eyJ1IjoiY2FsbGVib2xsIiwiYSI6ImNtOGU5NXlvYzFtejMyanNoam1xbmRybzQifQ.WFffNsWCkKcPisEbZtEkig";
+    const token = localStorage.getItem('mapboxToken');
     if (!token) {
       console.error('Mapbox token not found');
       return;

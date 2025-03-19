@@ -4,7 +4,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { RoutePoint, RouteResult } from '@/utils/routeUtils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Settings, Cloud, CloudRain, Sun, CloudLightning, CloudSnow, CloudFog, CloudSun, Moon, CloudMoon, CloudDrizzle } from 'lucide-react';
+import { Settings, Cloud, CloudRain, Sun, CloudLightning, CloudSnow, CloudFog, CloudSun, Moon, CloudMoon, CloudDrizzle, Wind, ThermometerSnowflake } from 'lucide-react';
 import TokenInput from './TokenInput';
 import { WeatherCheckpoint } from '@/utils/weatherUtils';
 
@@ -33,6 +33,29 @@ const RouteMap = ({ routeData, weatherData }: RouteMapProps) => {
       case 'cloud-fog': return <CloudFog className="h-4 w-4 text-gray-400" />;
       case 'cloud-drizzle': return <CloudDrizzle className="h-4 w-4 text-blue-400" />;
       default: return <Cloud className="h-4 w-4 text-gray-500" />;
+    }
+  };
+  
+  // Get risk icon based on risk reason
+  const getRiskIcon = (riskReason?: string) => {
+    if (!riskReason) return null;
+    
+    switch (riskReason.toLowerCase()) {
+      case 'snow':
+        return <CloudSnow className="h-4 w-4 text-blue-200" />;
+      case 'ice risk':
+      case 'ice':
+        return <ThermometerSnowflake className="h-4 w-4 text-blue-300" />;
+      case 'fog risk':
+      case 'fog':
+        return <CloudFog className="h-4 w-4 text-gray-400" />;
+      case 'high winds':
+        return <Wind className="h-4 w-4 text-indigo-400" />;
+      case 'heavy rain':
+      case 'thunderstorm':
+        return <CloudLightning className="h-4 w-4 text-purple-500" />;
+      default:
+        return <Cloud className="h-4 w-4 text-red-400" />;
     }
   };
   
@@ -177,10 +200,15 @@ const RouteMap = ({ routeData, weatherData }: RouteMapProps) => {
         const tempColor = checkpoint.weather.temperature > 25 ? 'text-red-500' : 
                          checkpoint.weather.temperature < 5 ? 'text-blue-500' : 'text-yellow-500';
         
+        // Add risky weather styling
+        const isRisky = checkpoint.weather.isRisky;
+        const riskClass = isRisky ? 'border-red-500 bg-red-50' : 'border-gray-200 bg-white/80';
+        const riskSize = isRisky ? 'w-8 h-8' : 'w-6 h-6';
+        
         el.innerHTML = `
-          <div class="bg-white/80 backdrop-filter backdrop-blur-sm border border-gray-200 rounded-lg p-1 shadow-md">
+          <div class="backdrop-filter backdrop-blur-sm border ${riskClass} rounded-lg p-1 shadow-md ${isRisky ? 'animate-pulse' : ''}">
             <div class="flex items-center justify-center">
-              <div class="w-6 h-6 flex items-center justify-center ${tempColor} font-semibold text-xs">
+              <div class="${riskSize} flex items-center justify-center ${tempColor} font-semibold text-xs">
                 ${checkpoint.weather.temperature}°
               </div>
             </div>
@@ -198,6 +226,7 @@ const RouteMap = ({ routeData, weatherData }: RouteMapProps) => {
             <p>${checkpoint.weather.temperature}°C</p>
             <p>Humidity: ${checkpoint.weather.humidity}%</p>
             <p>Wind: ${checkpoint.weather.wind} km/h</p>
+            ${checkpoint.weather.isRisky ? `<p class="text-red-500 font-semibold mt-2">⚠️ ${checkpoint.weather.riskReason}</p>` : ''}
           </div>
         `;
         

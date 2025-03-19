@@ -2,8 +2,9 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { WeatherCheckpoint } from '@/utils/weatherUtils';
-import { Cloud, CloudRain, Sun, CloudLightning, CloudSnow, CloudFog, CloudSun, Moon, CloudMoon, CloudDrizzle } from 'lucide-react';
+import { Cloud, CloudRain, Sun, CloudLightning, CloudSnow, CloudFog, CloudSun, Moon, CloudMoon, CloudDrizzle, Wind, ThermometerSnowflake } from 'lucide-react';
 
 interface RouteSummaryProps {
   weatherCheckpoints: WeatherCheckpoint[] | null;
@@ -31,6 +32,29 @@ const RouteSummary = ({ weatherCheckpoints, startTime }: RouteSummaryProps) => {
       default: return <Cloud className="h-4 w-4 text-gray-500" />;
     }
   };
+  
+  // Get risk icon based on risk reason
+  const getRiskIcon = (riskReason?: string) => {
+    if (!riskReason) return null;
+    
+    switch (riskReason.toLowerCase()) {
+      case 'snow':
+        return <CloudSnow className="h-4 w-4 text-blue-200" />;
+      case 'ice risk':
+      case 'ice':
+        return <ThermometerSnowflake className="h-4 w-4 text-blue-300" />;
+      case 'fog risk':
+      case 'fog':
+        return <CloudFog className="h-4 w-4 text-gray-400" />;
+      case 'high winds':
+        return <Wind className="h-4 w-4 text-indigo-400" />;
+      case 'heavy rain':
+      case 'thunderstorm':
+        return <CloudLightning className="h-4 w-4 text-purple-500" />;
+      default:
+        return <Cloud className="h-4 w-4 text-red-400" />;
+    }
+  };
 
   return (
     <Card className="bg-white/80 backdrop-blur-sm shadow-lg">
@@ -46,11 +70,15 @@ const RouteSummary = ({ weatherCheckpoints, startTime }: RouteSummaryProps) => {
                 <TableHead>Location</TableHead>
                 <TableHead>Weather</TableHead>
                 <TableHead>Temp</TableHead>
+                <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {weatherCheckpoints.map((checkpoint, index) => (
-                <TableRow key={index}>
+                <TableRow 
+                  key={index} 
+                  className={checkpoint.weather.isRisky ? "bg-red-50" : ""}
+                >
                   <TableCell className="font-medium">
                     {new Intl.DateTimeFormat('en-US', {
                       hour: 'numeric',
@@ -71,6 +99,14 @@ const RouteSummary = ({ weatherCheckpoints, startTime }: RouteSummaryProps) => {
                     }`}>
                       {checkpoint.weather.temperature}°C
                     </span>
+                  </TableCell>
+                  <TableCell>
+                    {checkpoint.weather.isRisky && (
+                      <Badge variant="destructive" className="flex items-center gap-1">
+                        {getRiskIcon(checkpoint.weather.riskReason)}
+                        {checkpoint.weather.riskReason}
+                      </Badge>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

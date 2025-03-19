@@ -9,6 +9,8 @@ export interface WeatherPoint {
   humidity?: number;
   wind?: number;
   location?: string;
+  isRisky?: boolean;
+  riskReason?: string;
 }
 
 export interface WeatherCheckpoint {
@@ -67,12 +69,22 @@ export const getWeatherData = async (
       // For real implementation - call OpenWeather API
       const weatherData = await fetchOpenWeatherData(lat, lon, weatherToken, now);
       
+      // Evaluate if the weather is risky
+      const riskAssessment = evaluateWeatherRisk(weatherData);
+      weatherData.isRisky = riskAssessment.isRisky;
+      weatherData.riskReason = riskAssessment.riskReason || undefined;
+      
       // Cache the result
       weatherCache.set(cacheKey, weatherData);
       return weatherData;
     } else {
       // Fallback to mock data if no token
       const mockWeather = generateMockWeather(lat, lon, now);
+      // Evaluate if the mock weather is risky
+      const riskAssessment = evaluateWeatherRisk(mockWeather);
+      mockWeather.isRisky = riskAssessment.isRisky;
+      mockWeather.riskReason = riskAssessment.riskReason || undefined;
+      
       weatherCache.set(cacheKey, mockWeather);
       return mockWeather;
     }
@@ -80,6 +92,11 @@ export const getWeatherData = async (
     console.error('Error fetching weather data:', error);
     // Fallback to mock data on error
     const mockWeather = generateMockWeather(lat, lon, now);
+    // Evaluate if the mock weather is risky
+    const riskAssessment = evaluateWeatherRisk(mockWeather);
+    mockWeather.isRisky = riskAssessment.isRisky;
+    mockWeather.riskReason = riskAssessment.riskReason || undefined;
+    
     weatherCache.set(cacheKey, mockWeather);
     return mockWeather;
   }
@@ -120,7 +137,7 @@ const fetchOpenWeatherData = async (
   
   if (hoursInFuture < 2) {
     // Parse current weather response
-    return {
+    const weatherPoint = {
       coordinates: [lon, lat],
       time,
       temperature: Math.round(data.main.temp),
@@ -129,6 +146,8 @@ const fetchOpenWeatherData = async (
       humidity: data.main.humidity,
       wind: Math.round(data.wind.speed * 3.6) // Convert m/s to km/h
     };
+    
+    return weatherPoint;
   } else {
     // Parse forecast response - find closest forecast time to our target time
     const forecasts = data.list;
@@ -145,7 +164,7 @@ const fetchOpenWeatherData = async (
       }
     }
     
-    return {
+    const weatherPoint = {
       coordinates: [lon, lat],
       time,
       temperature: Math.round(closestForecast.main.temp),
@@ -154,6 +173,8 @@ const fetchOpenWeatherData = async (
       humidity: closestForecast.main.humidity,
       wind: Math.round(closestForecast.wind.speed * 3.6) // Convert m/s to km/h
     };
+    
+    return weatherPoint;
   }
 };
 
@@ -190,6 +211,30 @@ const generateMockWeather = (lat: number, lon: number, time?: Date): WeatherPoin
   // Humidity and wind
   const humidity = Math.round(40 + Math.random() * 40); // 40-80%
   const wind = Math.round(Math.random() * 30); // 0-30 km/h
+  
+  // Add more risky conditions to the mock data for testing
+  const riskyConditions = [
+    { condition: 'Heavy Snow', icon: '13d' },
+    { condition: 'Thunderstorm', icon: '11d' },
+    { condition: 'Heavy Rain', icon: '09d' },
+    { condition: 'Fog', icon: '50d' }
+  ];
+  
+  // 20% chance of risky weather in mock data
+  if (Math.random() < 0.2) {
+    const riskyIndex = Math.floor(Math.random() * riskyConditions.length);
+    const selectedCondition = riskyConditions[riskyIndex];
+    
+    return {
+      coordinates: [lon, lat],
+      time: now,
+      temperature: temperature,
+      condition: selectedCondition.condition,
+      icon: weatherIcons[selectedCondition.icon] || 'cloud',
+      humidity,
+      wind
+    };
+  }
   
   return {
     coordinates: [lon, lat],
@@ -360,4 +405,46 @@ const calculateRouteDistance = (coordinates: number[][]): number => {
   }
   
   return distance;
+};
+
+/**
+ * Evaluate if weather conditions are potentially risky for travel
+ */
+export const evaluateWeatherRisk = (weather: WeatherPoint): { isRisky: boolean; riskReason: string | null } => {
+  // Define risk thresholds
+  const LOW_TEMP_THRESHOLD = 0; // Celsius - risk of ice
+  const HIGH_WIND_THRESHOLD = 40; // km/h
+  const HIGH_HUMIDITY_THRESHOLD = 95; // Percentage - risk of fog
+
+  // Check for risky conditions
+  if (weather.temperature <= LOW_TEMP_THRESHOLD) {
+    return { isRisky: true, riskReason: "Ice risk" };
+  }
+  
+  if (weather.wind && weather.wind >= HIGH_WIND_THRESHOLD) {
+    return { isRisky: true, riskReason: "High winds" };
+  }
+  
+  if (weather.humidity && weather.humidity >= HIGH_HUMIDITY_THRESHOLD) {
+    return { isRisky: true, riskReason: "Fog risk" };
+  }
+  
+  // Check condition-based risks
+  const riskyConditions = [
+    { keywords: ['snow', 'blizzard'], reason: "Snow" },
+    { keywords: ['thunderstorm', 'lightning'], reason: "Thunderstorm" },
+    { keywords: ['heavy rain', 'downpour'], reason: "Heavy rain" },
+    { keywords: ['fog', 'mist'], reason: "Fog" },
+    { keywords: ['ice', 'freezing'], reason: "Ice" },
+    { keywords: ['hail'], reason: "Hail" }
+  ];
+  
+  for (const riskType of riskyConditions) {
+    if (riskType.keywords.some(keyword => 
+      weather.condition.toLowerCase().includes(keyword.toLowerCase()))) {
+      return { isRisky: true, riskReason: riskType.reason };
+    }
+  }
+  
+  return { isRisky: false, riskReason: null };
 };

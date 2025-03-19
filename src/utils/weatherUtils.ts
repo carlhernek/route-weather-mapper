@@ -1,4 +1,3 @@
-
 import { RoutePoint } from './routeUtils';
 
 export interface WeatherPoint {
@@ -18,7 +17,7 @@ export interface WeatherCheckpoint {
   weather: WeatherPoint;
 }
 
-// Map weather condition codes to simpler categories
+// Map OpenWeather condition codes to simpler categories and Lucide icons
 const weatherIcons: Record<string, string> = {
   '01d': 'sun', // clear sky day
   '01n': 'moon', // clear sky night
@@ -40,6 +39,9 @@ const weatherIcons: Record<string, string> = {
   '50n': 'cloud-fog', // mist
 };
 
+// Cache for weather data to avoid excessive API calls
+const weatherCache = new Map<string, WeatherPoint>();
+
 /**
  * Fetch weather data for a specific location and time
  */
@@ -47,15 +49,111 @@ export const getWeatherData = async (
   lat: number,
   lon: number,
   time?: Date
-): Promise<WeatherPoint | null> => {
+): Promise<WeatherPoint> => {
+  const now = time || new Date();
+  const weatherToken = localStorage.getItem('weatherToken');
+  
+  // Create a cache key based on coordinates and time (rounded to hours)
+  const cacheKey = `${lat.toFixed(2)},${lon.toFixed(2)},${now.getHours()},${now.getDate()}`;
+  
+  // Check if we have cached data for this location and time
+  if (weatherCache.has(cacheKey)) {
+    return weatherCache.get(cacheKey)!;
+  }
+  
   try {
-    // For demo purposes, we'll generate mock weather data
-    // In a real app, you would call a weather API like OpenWeatherMap or WeatherAPI
-    const mockWeather = generateMockWeather(lat, lon, time);
-    return mockWeather;
+    // Only make real API calls if we have a token
+    if (weatherToken && weatherToken.trim() !== '') {
+      // For real implementation - call OpenWeather API
+      const weatherData = await fetchOpenWeatherData(lat, lon, weatherToken, now);
+      
+      // Cache the result
+      weatherCache.set(cacheKey, weatherData);
+      return weatherData;
+    } else {
+      // Fallback to mock data if no token
+      const mockWeather = generateMockWeather(lat, lon, now);
+      weatherCache.set(cacheKey, mockWeather);
+      return mockWeather;
+    }
   } catch (error) {
     console.error('Error fetching weather data:', error);
-    return null;
+    // Fallback to mock data on error
+    const mockWeather = generateMockWeather(lat, lon, now);
+    weatherCache.set(cacheKey, mockWeather);
+    return mockWeather;
+  }
+};
+
+/**
+ * Fetch real weather data from OpenWeather API
+ */
+const fetchOpenWeatherData = async (
+  lat: number, 
+  lon: number, 
+  apiKey: string,
+  time: Date
+): Promise<WeatherPoint> => {
+  // Determine if we need current weather or forecast
+  const now = new Date();
+  const hoursInFuture = (time.getTime() - now.getTime()) / (1000 * 60 * 60);
+  
+  // If time is within 2 hours from now, use current weather
+  // Otherwise use the forecast API
+  let url: string;
+  
+  if (hoursInFuture < 2) {
+    // Current weather API
+    url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`;
+  } else {
+    // Forecast API
+    url = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`;
+  }
+  
+  const response = await fetch(url);
+  
+  if (!response.ok) {
+    throw new Error(`Weather API error: ${response.statusText}`);
+  }
+  
+  const data = await response.json();
+  
+  if (hoursInFuture < 2) {
+    // Parse current weather response
+    return {
+      coordinates: [lon, lat],
+      time,
+      temperature: Math.round(data.main.temp),
+      condition: data.weather[0].description,
+      icon: weatherIcons[data.weather[0].icon] || 'cloud',
+      humidity: data.main.humidity,
+      wind: Math.round(data.wind.speed * 3.6) // Convert m/s to km/h
+    };
+  } else {
+    // Parse forecast response - find closest forecast time to our target time
+    const forecasts = data.list;
+    let closestForecast = forecasts[0];
+    let minTimeDiff = Infinity;
+    
+    for (const forecast of forecasts) {
+      const forecastTime = new Date(forecast.dt * 1000);
+      const timeDiff = Math.abs(forecastTime.getTime() - time.getTime());
+      
+      if (timeDiff < minTimeDiff) {
+        minTimeDiff = timeDiff;
+        closestForecast = forecast;
+      }
+    }
+    
+    return {
+      coordinates: [lon, lat],
+      time,
+      temperature: Math.round(closestForecast.main.temp),
+      condition: closestForecast.weather[0].description,
+      icon: weatherIcons[closestForecast.weather[0].icon] || 'cloud',
+      humidity: closestForecast.main.humidity,
+      wind: Math.round(closestForecast.wind.speed * 3.6) // Convert m/s to km/h
+    };
   }
 };
 
@@ -105,7 +203,30 @@ const generateMockWeather = (lat: number, lon: number, time?: Date): WeatherPoin
 };
 
 /**
- * Calculate weather checkpoints along a route at 15 minute intervals
+ * Calculate distance between two points in kilometers
+ */
+const haversineDistance = (
+  lat1: number, 
+  lon1: number, 
+  lat2: number, 
+  lon2: number
+): number => {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
+
+/**
+ * Calculate weather checkpoints along a route at either 15 minute intervals 
+ * or maximum 10km distance, whichever comes first
  */
 export const calculateWeatherAlongRoute = async (
   routeFeature: GeoJSON.Feature<GeoJSON.Geometry>,
@@ -131,65 +252,90 @@ export const calculateWeatherAlongRoute = async (
   const startCoords = coordinates[0] as [number, number];
   const startWeather = await getWeatherData(startCoords[1], startCoords[0], startTime);
   
-  if (startWeather) {
-    checkpoints.push({
-      location: waypoints[0]?.name || 'Start',
-      arrivalTime: startTime,
-      weather: startWeather
-    });
-  }
+  checkpoints.push({
+    location: waypoints[0]?.name || 'Start',
+    arrivalTime: startTime,
+    weather: startWeather
+  });
   
-  // Calculate checkpoints every 15 minutes
-  const intervalMs = 15 * 60 * 1000; // 15 minutes in milliseconds
-  const totalIntervals = Math.floor(duration * 1000 / intervalMs);
+  // Calculate time and distance-based checkpoints
+  const timeIntervalMs = 15 * 60 * 1000; // 15 minutes in milliseconds
+  const distanceIntervalKm = 10; // 10 kilometers
   
-  // For each interval, find the position along the route at that time
-  for (let i = 1; i <= totalIntervals; i++) {
-    const timeOffset = i * intervalMs;
-    const checkpointTime = new Date(startTime.getTime() + timeOffset);
+  // Calculate point density
+  const totalDistance = calculateRouteDistance(coordinates);
+  const totalTimeMs = duration * 1000;
+  
+  // Calculate speed (km/ms) for time estimation
+  const speedKmMs = totalDistance / totalTimeMs;
+  
+  let lastCheckpointDist = 0;
+  let lastCheckpointTime = startTime.getTime();
+  let lastLat = startCoords[1];
+  let lastLon = startCoords[0];
+  
+  // Process route coordinates (skip first as we already added it)
+  for (let i = 1; i < coordinates.length; i++) {
+    const [lon, lat] = coordinates[i] as [number, number];
     
-    // Calculate progress along the route (0 to 1)
-    const progress = Math.min(timeOffset / (duration * 1000), 1);
+    // Calculate distance from last point
+    const segmentDistance = haversineDistance(lastLat, lastLon, lat, lon);
+    const currentDistance = lastCheckpointDist + segmentDistance;
     
-    // Find the closest coordinate index based on progress
-    const coordIndex = Math.floor(progress * coordinates.length);
+    // Estimate time at this point based on distance and speed
+    const distanceCovered = currentDistance / totalDistance;
+    const timeAtPoint = startTime.getTime() + (distanceCovered * totalTimeMs);
     
-    if (coordIndex < coordinates.length) {
-      const coord = coordinates[coordIndex] as [number, number];
-      const weatherData = await getWeatherData(coord[1], coord[0], checkpointTime);
+    // Check if we need a new checkpoint based on time or distance
+    const timeSinceLastCheckpoint = timeAtPoint - lastCheckpointTime;
+    const distanceSinceLastCheckpoint = currentDistance - lastCheckpointDist;
+    
+    if (timeSinceLastCheckpoint >= timeIntervalMs || distanceSinceLastCheckpoint >= distanceIntervalKm) {
+      const checkpointTime = new Date(timeAtPoint);
+      const weatherData = await getWeatherData(lat, lon, checkpointTime);
       
-      if (weatherData) {
-        // Find nearest named waypoint
-        let nearestWaypoint = 'En route';
-        let minDistance = Infinity;
+      // Find nearest named waypoint
+      let nearestWaypoint = 'En route';
+      let minDistance = Infinity;
+      
+      waypoints.forEach(wp => {
+        const distance = Math.hypot(
+          wp.coordinates[0] - lon,
+          wp.coordinates[1] - lat
+        );
         
-        waypoints.forEach(wp => {
-          const distance = Math.hypot(
-            wp.coordinates[0] - coord[0],
-            wp.coordinates[1] - coord[1]
-          );
-          
-          if (distance < minDistance) {
-            minDistance = distance;
-            nearestWaypoint = wp.name;
-          }
-        });
-        
-        checkpoints.push({
-          location: nearestWaypoint,
-          arrivalTime: checkpointTime,
-          weather: weatherData
-        });
-      }
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearestWaypoint = wp.name;
+        }
+      });
+      
+      checkpoints.push({
+        location: nearestWaypoint,
+        arrivalTime: checkpointTime,
+        weather: weatherData
+      });
+      
+      // Update last checkpoint references
+      lastCheckpointDist = currentDistance;
+      lastCheckpointTime = timeAtPoint;
     }
+    
+    lastLat = lat;
+    lastLon = lon;
   }
   
-  // Add end point
+  // Add end point (if it's not too close to the last added checkpoint)
   const endCoords = coordinates[coordinates.length - 1] as [number, number];
   const endTime = new Date(startTime.getTime() + duration * 1000);
-  const endWeather = await getWeatherData(endCoords[1], endCoords[0], endTime);
   
-  if (endWeather) {
+  // Only add endpoint if it's at least 5 minutes or 2km after the last checkpoint
+  const timeSinceLastCheckpoint = endTime.getTime() - lastCheckpointTime;
+  const distToEnd = haversineDistance(lastLat, lastLon, endCoords[1], endCoords[0]);
+  
+  if (timeSinceLastCheckpoint >= 5 * 60 * 1000 || distToEnd >= 2) {
+    const endWeather = await getWeatherData(endCoords[1], endCoords[0], endTime);
+    
     checkpoints.push({
       location: waypoints[waypoints.length - 1]?.name || 'End',
       arrivalTime: endTime,
@@ -200,3 +346,18 @@ export const calculateWeatherAlongRoute = async (
   return checkpoints;
 };
 
+/**
+ * Calculate total distance of a route in kilometers
+ */
+const calculateRouteDistance = (coordinates: number[][]): number => {
+  let distance = 0;
+  
+  for (let i = 1; i < coordinates.length; i++) {
+    const [lon1, lat1] = coordinates[i - 1];
+    const [lon2, lat2] = coordinates[i];
+    
+    distance += haversineDistance(lat1, lon1, lat2, lon2);
+  }
+  
+  return distance;
+};

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import RouteMap from '@/components/RouteMap';
 import LocationForm from '@/components/LocationForm';
 import TokenInput from '@/components/TokenInput';
@@ -14,7 +14,22 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [weatherData, setWeatherData] = useState<WeatherCheckpoint[] | null>(null);
   const [startTime, setStartTime] = useState<Date | null>(null);
+  const [weatherApiKeyMissing, setWeatherApiKeyMissing] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Check if OpenWeather API key is available
+    const weatherToken = localStorage.getItem('weatherToken');
+    setWeatherApiKeyMissing(!weatherToken || weatherToken.trim() === '');
+    
+    if (!weatherToken || weatherToken.trim() === '') {
+      toast({
+        title: "OpenWeather API Key Missing",
+        description: "Add an OpenWeather API key in settings for real weather data",
+        variant: "destructive"
+      });
+    }
+  }, [toast]);
 
   const handleRouteCalculated = async (data: RouteResult | null, departureTime: string) => {
     setRouteData(data);
@@ -70,6 +85,14 @@ const Index = () => {
             </div>
             <TokenInput />
           </div>
+          
+          {weatherApiKeyMissing && (
+            <Card className="p-4 bg-amber-50 border-amber-200">
+              <p className="text-amber-800 text-sm">
+                ⚠️ OpenWeather API key not found. Using mock weather data. Add a key in settings for accurate forecasts.
+              </p>
+            </Card>
+          )}
           
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <Card className="p-6 bg-white/80 backdrop-blur-sm shadow-lg lg:col-span-1">

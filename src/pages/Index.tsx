@@ -27,9 +27,12 @@ const Index = () => {
         const startTimeObj = departureTime ? new Date(departureTime) : new Date();
         setStartTime(startTimeObj);
         
+        // Get the route feature - ensuring it has the correct type
+        const routeFeature = data.route.features[0];
+        
         // Calculate weather along the route
         const weatherCheckpoints = await calculateWeatherAlongRoute(
-          data.route.features[0],
+          routeFeature,
           startTimeObj,
           data.duration,
           data.waypoints

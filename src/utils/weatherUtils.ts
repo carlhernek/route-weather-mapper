@@ -108,13 +108,20 @@ const generateMockWeather = (lat: number, lon: number, time?: Date): WeatherPoin
  * Calculate weather checkpoints along a route at 15 minute intervals
  */
 export const calculateWeatherAlongRoute = async (
-  route: GeoJSON.Feature<GeoJSON.LineString>,
+  routeFeature: GeoJSON.Feature<GeoJSON.Geometry>,
   startTime: Date,
   duration: number, // in seconds
   waypoints: RoutePoint[]
 ): Promise<WeatherCheckpoint[]> => {
   const checkpoints: WeatherCheckpoint[] = [];
-  const coordinates = route.geometry.coordinates;
+  
+  // Check if the feature has a LineString geometry
+  if (!routeFeature.geometry || routeFeature.geometry.type !== 'LineString') {
+    console.error('Route feature must have LineString geometry');
+    return checkpoints;
+  }
+  
+  const coordinates = routeFeature.geometry.coordinates;
   
   if (!coordinates || coordinates.length === 0) {
     return checkpoints;
@@ -192,3 +199,4 @@ export const calculateWeatherAlongRoute = async (
   
   return checkpoints;
 };
+
